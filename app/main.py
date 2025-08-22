@@ -1,11 +1,14 @@
-from termcolor import cprint
+import flyte
 
 from package.hello import say_hi
 
+env = flyte.TaskEnvironment("test")
 
-def greet():
+
+@env.task
+def main():
     response = say_hi()
     return f"The Python package says, '{response}'"
 
 if __name__ == "__main__":
-   cprint(greet(), "red", attrs=["bold"])
+    main()
