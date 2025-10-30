@@ -1,7 +1,7 @@
 load("@rules_python//python:defs.bzl", "py_binary", "py_test")
 load("@pip//:requirements.bzl", "requirement")
 load("@rules_python//python:pip.bzl", "compile_pip_requirements")
-load("//bazel:flyte.bzl", "flyte_cli")
+load("//bazel:flyte.bzl", "flyte_cli", "flyte_run", "flyte_deploy", "flyte_build")
 
 py_binary(
     name = "main",
@@ -29,6 +29,59 @@ py_binary(
 # Flyte CLI rule target - can be used with any flyte command
 flyte_cli(
     name = "flyte",
+)
+
+# Flyte run rule - run the main task locally
+flyte_run(
+    name = "run_main_local",
+    task_file = "main.py",
+    task_function = "main",
+    mode = "local",
+    params = ["x='Bazel'", "count=3"],
+    deps = [
+        "//package:hello",
+        requirement("termcolor"),
+        requirement("flyte"),
+    ],
+)
+
+# Flyte run rule - run the main task remotely
+flyte_run(
+    name = "run_main_remote",
+    task_file = "main.py",
+    task_function = "main",
+    mode = "remote",
+    params = ["x='Bazel Remote'", "count=2"],
+    deps = [
+        "//package:hello",
+        requirement("termcolor"),
+        requirement("flyte"),
+    ],
+)
+
+# Flyte deploy rule - deploy the test environment
+flyte_deploy(
+    name = "deploy_test_env",
+    env_file = "main.py",
+    env_name = "test",
+    dryrun = False,
+    deps = [
+        "//package:hello",
+        requirement("termcolor"),
+        requirement("flyte"),
+    ],
+)
+
+# Flyte build rule - build images for the test environment
+flyte_build(
+    name = "build_test_env",
+    env_file = "main.py",
+    env_name = "test",
+    deps = [
+        "//package:hello",
+        requirement("termcolor"),
+        requirement("flyte"),
+    ],
 )
 
 py_test(
