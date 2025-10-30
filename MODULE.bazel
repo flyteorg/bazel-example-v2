@@ -6,6 +6,13 @@ pip.parse(
     hub_name = "pip",
     python_version = "3.11",
     requirements_lock = "//app:requirements_lock.txt",
+    experimental_requirement_cycles = {
+        "flyte": [
+            "flyte",
+            "flyteidl",
+            "flyteidl2",
+        ],
+    },
 )
 
 python = use_extension("@rules_python//python/extensions:python.bzl", "python")

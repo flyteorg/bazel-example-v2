@@ -8,6 +8,7 @@ py_binary(
     deps = [
         "//package:hello",
         requirement("termcolor"),
+        requirement("flyte"),
     ],
 )
 

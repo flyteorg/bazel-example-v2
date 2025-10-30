@@ -6,9 +6,9 @@ env = flyte.TaskEnvironment("test")
 
 
 @env.task
-def main():
-    response = say_hi()
+def main(x: str) -> str:
+    response = say_hi(x)
     return f"The Python package says, '{response}'"
 
 if __name__ == "__main__":
-    main()
+    print(main("Bazel"))
