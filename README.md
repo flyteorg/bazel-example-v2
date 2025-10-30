@@ -1,9 +1,35 @@
-# This example is copied from buildkite
+# Bazel + Flyte Example
+
+This repository demonstrates how to build and test Python packages with Bazel, and provides custom Bazel rules for working with [Flyte](https://flyte.org/) workflows and tasks.
 
 <!-- docs:start -->
-## How it works
+## Quick Start
 
-This example uses Bazel to build and test a Python package and then use that package in another Python program configured with a third-party dependency. The repo is also configured with a Buildkite pipeline that uploads the Bazel-built Python package as a Buildkite [build artifact](https://buildkite.com/docs/pipelines/configure/artifacts).
+### Build Everything
+
+```bash
+$ bazel build //...
+```
+
+### Run Tests
+
+```bash
+$ bazel test //...
+```
+
+### Run the Main Application
+
+```bash
+$ bazel run //app:main
+```
+
+---
+
+## Bazel Basics
+
+### Building Packages
+
+This example uses Bazel to build and test a Python package and then use that package in another Python program configured with third-party dependencies.
 
 ```bash
 $ bazel build //...
@@ -15,6 +41,8 @@ INFO: 1 process: 1 internal.
 INFO: Build completed successfully, 1 total action
 ```
 
+### Testing
+
 ```bash
 $ bazel test //...
 
@@ -23,82 +51,236 @@ INFO: Found 4 targets and 2 test targets...
 INFO: Elapsed time: 0.130s, Critical Path: 0.00s
 INFO: 1 process: 1 internal.
 INFO: Build completed successfully, 1 total action
-PASSED: //app:test_main (see /private/var/tmp/_bazel_cnunciato/91877609f582aac2a59896b10bfc8689/execroot/_main/bazel-out/darwin_arm64-fastbuild/testlogs/app/test_main/test.log)
-INFO: From Testing //app:test_main
-==================== Test output for //app:test_main:
-The Python package says, 'Hi!'
-================================================================================
-PASSED: //package:test_hello (see /private/var/tmp/_bazel_cnunciato/91877609f582aac2a59896b10bfc8689/execroot/_main/bazel-out/darwin_arm64-fastbuild/testlogs/package/test_hello/test.log)
-INFO: From Testing //package:test_hello
-==================== Test output for //package:test_hello:
-.
-----------------------------------------------------------------------
-Ran 1 test in 0.000s
-
-OK
-================================================================================
-//app:test_main                                                 (cached) PASSED in 0.5s
-//package:test_hello                                            (cached) PASSED in 0.4s
+PASSED: //app:main_test
+PASSED: //package:test_hello
 
 Executed 0 out of 2 tests: 2 tests pass.
 ```
 
-```bash
-$ bazel run requirements.update
-INFO: Analyzed target //app:requirements.update (15 packages loaded, 988 targets configured).
-INFO: Found 1 target...
-Target //app:requirements.update up-to-date:
-  bazel-bin/app/requirements.update
-INFO: Elapsed time: 0.541s, Critical Path: 0.38s
-INFO: 5 processes: 5 internal.
-INFO: Build completed successfully, 5 total actions
-INFO: Running command line: bazel-bin/app/requirements.update '--src=_main/app/requirements.txt' _main/app/requirements_lock.txt //app:requirements.update '--resolver=backtracking' --allow-unsafe --generate-hashes
-Updating app/requirements_lock.txt
-```
+### Managing Python Dependencies
+
+Update your `requirements_lock.txt` from `requirements.txt`:
 
 ```bash
-$ bazel run //app:main --ui_event_filters=-INFO --noshow_progress --show_result=0
-
-The Python package says, 'Hi!'
+$ bazel run //app:requirements.update
 ```
 
-## Flyte CLI Bazel Rule
+This uses `rules_python` to compile and lock your Python dependencies with hashes for reproducible builds.
 
-This project includes a custom Bazel rule for running Flyte CLI commands. The rule is located in `bazel/flyte.bzl`.
+---
 
-### Usage
+## Flyte Bazel Rules
 
-Run the Flyte CLI through Bazel:
+This project includes custom Bazel rules for working with Flyte. These rules are located in `bazel/flyte.bzl` and provide four main capabilities:
+
+1. **`flyte_cli`** - Run Flyte CLI commands through Bazel
+2. **`flyte_run`** - Execute Flyte tasks locally or remotely
+3. **`flyte_deploy`** - Deploy Flyte environments
+4. **`flyte_build`** - Build Docker images for Flyte environments
+
+### flyte_cli - Running Flyte CLI Commands
+
+The `flyte_cli` rule allows you to run any Flyte CLI command through Bazel:
 
 ```bash
 # Run any flyte command
-$ bazel run //app:flyte -- <flyte-command>
-
-# Examples
 $ bazel run //app:flyte -- version
 $ bazel run //app:flyte -- --help
 $ bazel run //app:flyte -- whoami
 ```
 
-### Running Custom Flyte Tasks with the Entrypoint Target
+### flyte_run - Execute Flyte Tasks
 
-The `entrypoint` target allows you to run specific Flyte tasks or workflows using `pyflyte run`:
+Run Flyte tasks locally or remotely using the `flyte.run()` API:
+
+```bash
+# Run a task locally
+$ bazel run //app:run_main_local
+
+# Run a task on a remote Flyte cluster
+$ bazel run //app:run_main_remote
+```
+
+These targets are defined in your `BUILD.bazel` file:
+
+```starlark
+flyte_run(
+    name = "run_main_local",
+    task_file = "main.py",
+    task_function = "main",
+    mode = "local",
+    params = ["x='Hello'", "count=5"],
+    deps = [
+        "//package:hello",
+        requirement("flyte"),
+    ],
+)
+```
+
+### flyte_deploy - Deploy Flyte Environments
+
+Deploy Flyte `TaskEnvironment` objects to a remote cluster:
+
+```bash
+# Deploy an environment
+$ bazel run //app:deploy_test_env
+
+# Dry run to see what would be deployed
+$ bazel run //app:deploy_test_env_dryrun
+```
+
+### flyte_build - Build Docker Images
+
+Build Docker images for Flyte environments:
+
+```bash
+$ bazel run //app:build_test_env
+```
+
+### Custom Entrypoint
+
+The `entrypoint` target provides a flexible way to run Python scripts with all dependencies:
 
 ```bash
 # Run a specific workflow
 $ bazel run //app:entrypoint -- main.py my_wf
 
-# Pass additional arguments to your task
-$ bazel run //app:entrypoint -- main.py my_wf --help
-
-# Run with custom parameters
+# Pass custom parameters
 $ bazel run //app:entrypoint -- main.py my_task --param value
 ```
 
-The `entrypoint` target provides a flexible way to execute any Flyte task or workflow defined in your Python files, similar to running `pyflyte run` directly but with all the benefits of Bazel's dependency management.
+---
 
-### Documentation
+## Documentation
 
-For complete documentation on the `flyte_cli` rule, including setup instructions and examples, see [bazel/README.md](bazel/README.md).
+### Complete Flyte Bazel Rules Documentation
+
+For complete documentation on all Flyte Bazel rules, including:
+- Detailed attribute descriptions
+- Configuration options
+- Advanced usage examples
+- Implementation details
+
+See **[bazel/README.md](bazel/README.md)**
+
+### BUILD.bazel Examples
+
+The `app/BUILD.bazel` file contains working examples of all the Flyte rules:
+
+```starlark
+load("//bazel:flyte.bzl", "flyte_cli", "flyte_run", "flyte_deploy", "flyte_build")
+
+# CLI wrapper
+flyte_cli(name = "flyte")
+
+# Local task execution
+flyte_run(
+    name = "run_main_local",
+    task_file = "main.py",
+    task_function = "main",
+    mode = "local",
+    params = ["x='Bazel'", "count=3"],
+    deps = ["//package:hello", requirement("flyte")],
+)
+
+# Remote task execution
+flyte_run(
+    name = "run_main_remote",
+    task_file = "main.py",
+    task_function = "main",
+    mode = "remote",
+    params = ["x='Remote'", "count=2"],
+    deps = ["//package:hello", requirement("flyte")],
+)
+
+# Environment deployment
+flyte_deploy(
+    name = "deploy_test_env",
+    env_file = "main.py",
+    env_name = "test",
+    deps = ["//package:hello", requirement("flyte")],
+)
+
+# Image building
+flyte_build(
+    name = "build_test_env",
+    env_file = "main.py",
+    env_name = "test",
+    deps = ["//package:hello", requirement("flyte")],
+)
+```
+
+---
+
+## Project Structure
+
+```
+.
+├── README.md                 # This file
+├── MODULE.bazel             # Bazel module configuration
+├── bazel/                   # Custom Bazel rules
+│   ├── README.md           # Complete documentation for Flyte rules
+│   ├── BUILD.bazel         # Internal Flyte CLI binary target
+│   ├── flyte.bzl           # Flyte Bazel rules
+│   └── flyte_cli.py        # Flyte CLI wrapper
+├── app/                     # Main application
+│   ├── BUILD.bazel         # Build targets with Flyte rule examples
+│   ├── main.py             # Main application and Flyte tasks
+│   ├── main_test.py        # Tests
+│   ├── requirements.txt    # Python dependencies
+│   └── requirements_lock.txt # Locked dependencies
+└── package/                 # Example Python package
+    ├── BUILD.bazel
+    └── hello.py
+```
+
+---
+
+## Configuration
+
+### Flyte Configuration
+
+For remote execution (using `flyte_run`, `flyte_deploy`, or `flyte_build` with remote mode), you can configure Flyte in two ways:
+
+1. **Auto-discovery**: Place a config file at `.flyte/config.yaml` (automatically discovered)
+2. **Explicit config**: Pass `config_file = "path/to/config.yaml"` to the rule
+
+Example `.flyte/config.yaml`:
+
+```yaml
+endpoint: flyte.example.com
+insecure: false
+project: myproject
+domain: development
+```
+
+### Python Configuration
+
+Python version and dependencies are configured in `MODULE.bazel`:
+
+```starlark
+python.toolchain(
+    python_version = "3.11",
+    is_default = True,
+)
+
+pip.parse(
+    hub_name = "pip",
+    python_version = "3.11",
+    requirements_lock = "//app:requirements_lock.txt",
+)
+```
+
+---
+
+## Features
+
+- **Reproducible builds** with Bazel
+- **Locked Python dependencies** using `rules_python`
+- **Integrated Flyte CLI** through Bazel targets
+- **Local and remote Flyte execution** with the same codebase
+- **Type-safe Flyte deployments** using Python API
+- **Docker image building** for Flyte environments
+- **Comprehensive testing** with `py_test`
 
 <!-- docs:end -->
