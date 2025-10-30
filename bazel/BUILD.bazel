@@ -1,0 +1,13 @@
+load("@rules_python//python:defs.bzl", "py_binary")
+load("@pip//:requirements.bzl", "requirement")
+
+# Bundled Flyte CLI entry point that ships with the rule
+py_binary(
+    name = "_flyte_cli_bin",
+    srcs = ["flyte_cli.py"],
+    deps = [
+        requirement("flyte"),
+    ],
+    main = "flyte_cli.py",
+    visibility = ["//visibility:public"],
+)

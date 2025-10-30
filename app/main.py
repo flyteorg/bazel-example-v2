@@ -12,12 +12,15 @@ async def main(x: str) -> str:
 
 
 
-def entrypoint():
+def entrypoint(input_str: str = "Bazel"):
    flyte.init()
-   r = flyte.run(main, "Bazel")
+   r = flyte.run(main, input_str)
    print(r.url)
    print(r.outputs())
 
 
 if __name__ == "__main__":
-   entrypoint()
+   import sys
+   # If command line argument provided, use it; otherwise use default
+   input_arg = sys.argv[1] if len(sys.argv) > 1 else "Bazel"
+   entrypoint(input_arg)

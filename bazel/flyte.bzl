@@ -45,7 +45,7 @@ flyte_cli = rule(
             default = [],
         ),
         "_flyte_cli": attr.label(
-            default = Label("//app:_flyte_cli_bin"),
+            default = Label("//bazel:_flyte_cli_bin"),
             executable = True,
             cfg = "exec",
         ),

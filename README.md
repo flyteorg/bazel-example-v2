@@ -80,6 +80,23 @@ $ bazel run //app:flyte -- --help
 $ bazel run //app:flyte -- whoami
 ```
 
+### Running Custom Flyte Tasks with the Entrypoint Target
+
+The `entrypoint` target allows you to run specific Flyte tasks or workflows using `pyflyte run`:
+
+```bash
+# Run a specific workflow
+$ bazel run //app:entrypoint -- main.py my_wf
+
+# Pass additional arguments to your task
+$ bazel run //app:entrypoint -- main.py my_wf --help
+
+# Run with custom parameters
+$ bazel run //app:entrypoint -- main.py my_task --param value
+```
+
+The `entrypoint` target provides a flexible way to execute any Flyte task or workflow defined in your Python files, similar to running `pyflyte run` directly but with all the benefits of Bazel's dependency management.
+
 ### Documentation
 
 For complete documentation on the `flyte_cli` rule, including setup instructions and examples, see [bazel/README.md](bazel/README.md).

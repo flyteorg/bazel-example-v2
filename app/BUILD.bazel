@@ -13,14 +13,17 @@ py_binary(
     ],
 )
 
-# Flyte CLI entry point (internal dependency for flyte_cli rule)
+# Entrypoint target - run with: bazel run //app:entrypoint -- "YourCustomString"
 py_binary(
-    name = "_flyte_cli_bin",
-    srcs = ["flyte_cli.py"],
+    name = "entrypoint",
+    srcs = ["main.py"],
+    main = "main.py",
     deps = [
+        "//package:hello",
+        requirement("termcolor"),
         requirement("flyte"),
     ],
-    main = "flyte_cli.py",
+    args = [],  # Default args can be set here, or passed at runtime
 )
 
 # Flyte CLI rule target - can be used with any flyte command
