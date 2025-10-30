@@ -61,4 +61,27 @@ $ bazel run //app:main --ui_event_filters=-INFO --noshow_progress --show_result=
 
 The Python package says, 'Hi!'
 ```
+
+## Flyte CLI Bazel Rule
+
+This project includes a custom Bazel rule for running Flyte CLI commands. The rule is located in `bazel/flyte.bzl`.
+
+### Usage
+
+Run the Flyte CLI through Bazel:
+
+```bash
+# Run any flyte command
+$ bazel run //app:flyte -- <flyte-command>
+
+# Examples
+$ bazel run //app:flyte -- version
+$ bazel run //app:flyte -- --help
+$ bazel run //app:flyte -- whoami
+```
+
+### Documentation
+
+For complete documentation on the `flyte_cli` rule, including setup instructions and examples, see [bazel/README.md](bazel/README.md).
+
 <!-- docs:end -->

@@ -1,0 +1,5 @@
+#!/bin/bash
+# Wrapper script to run flyte CLI via Bazel without needing '--'
+set -e
+
+exec bazel run //app:flyte -- "$@"

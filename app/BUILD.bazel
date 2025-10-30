@@ -1,6 +1,7 @@
 load("@rules_python//python:defs.bzl", "py_binary", "py_test")
 load("@pip//:requirements.bzl", "requirement")
 load("@rules_python//python:pip.bzl", "compile_pip_requirements")
+load("//bazel:flyte.bzl", "flyte_cli")
 
 py_binary(
     name = "main",
@@ -10,6 +11,21 @@ py_binary(
         requirement("termcolor"),
         requirement("flyte"),
     ],
+)
+
+# Flyte CLI entry point (internal dependency for flyte_cli rule)
+py_binary(
+    name = "_flyte_cli_bin",
+    srcs = ["flyte_cli.py"],
+    deps = [
+        requirement("flyte"),
+    ],
+    main = "flyte_cli.py",
+)
+
+# Flyte CLI rule target - can be used with any flyte command
+flyte_cli(
+    name = "flyte",
 )
 
 py_test(
