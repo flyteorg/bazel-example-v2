@@ -2,7 +2,36 @@
 
 load("@rules_python//python:defs.bzl", "py_binary")
 
-def flyte_run(name, task_file, task_function, mode = "local", params = [], config_file = None, deps = [], **kwargs):
+def _generate_flyte_init(mode, config_file = None, log_level = 30):
+    """
+    Generates unified Flyte initialization code.
+
+    Args:
+        mode: Execution mode: 'local' or 'remote'
+        config_file: Path to Flyte config file (used for remote mode). If None, uses auto-discovery
+        log_level: Logging level (int), default 30 (WARNING). Set to 10 for DEBUG.
+
+    Returns:
+        Python code string for Flyte initialization
+    """
+    if mode == "local":
+        return """# Initialize Flyte for local execution
+flyte.init(log_level={log_level})""".format(log_level = log_level)
+    else:
+        # Remote mode - use init_from_config
+        if config_file:
+            return """# Initialize Flyte for remote execution with explicit config
+config_path = "{config_path}"
+if os.path.exists(config_path):
+    flyte.init_from_config(config_path, log_level={log_level})
+else:
+    print(f"Error: Config file '{{config_path}}' not found")
+    sys.exit(1)""".format(config_path = config_file, log_level = log_level)
+        else:
+            return """# Initialize Flyte for remote execution with auto-discovered config
+flyte.init_from_config(log_level={log_level})""".format(log_level = log_level)
+
+def flyte_run(name, task_file, task_function, mode = "local", params = [], config_file = None, log_level = 30, deps = [], **kwargs):
     """
     A macro to create a py_binary target that runs Flyte tasks locally or remotely using flyte.run().
 
@@ -13,6 +42,7 @@ def flyte_run(name, task_file, task_function, mode = "local", params = [], confi
         mode: Execution mode: 'local' or 'remote' (default: 'local')
         params: Parameters to pass to the task (format: key=value)
         config_file: Path to Flyte config file (used for remote mode). If None, uses flyte.init_from_config() to auto-discover .flyte/config.yaml
+        log_level: Logging level (int), default 30 (WARNING). Set to 10 for DEBUG.
         deps: Dependencies required by the task
         **kwargs: Additional arguments to pass to py_binary
 
@@ -23,6 +53,7 @@ def flyte_run(name, task_file, task_function, mode = "local", params = [], confi
             task_function = "main",
             mode = "remote",
             config_file = "flyte_config.yaml",
+            log_level = 10,
             params = ["x='hello'", "count=5"],
             deps = ["//package:hello"],
         )
@@ -41,19 +72,8 @@ def flyte_run(name, task_file, task_function, mode = "local", params = [], confi
     task_file_name = task_file.split(":")[-1] if ":" in task_file else task_file
     module_name = task_file_name.replace(".py", "")
 
-    # Create a Python script that uses flyte.run()
-    # If config_file is provided, use it explicitly. Otherwise, let flyte.init_from_config()
-    # automatically discover the config in .flyte/config.yaml
-    if config_file:
-        init_code = """  config_path = "{config_path}"
-  if os.path.exists(config_path):
-    flyte.init_from_config(config_path)
-  else:
-    print(f"Error: Config file '{{config_path}}' not found")
-    sys.exit(1)""".format(config_path = config_file)
-    else:
-        init_code = """  # Let flyte.init_from_config() automatically find .flyte/config.yaml
-  flyte.init_from_config()"""
+    # Generate unified initialization code
+    init_code = _generate_flyte_init(mode, config_file, log_level)
 
     script_content = """import sys
 import os
@@ -65,10 +85,7 @@ import {module_name} as task_module
 # Get the task function
 task_fn = getattr(task_module, "{task_function}")
 
-# Initialize flyte
-if "{mode}" == "local":
-  flyte.init()
-else:
+# Initialize flyte with unified initialization
 {init_code}
 
 # Parse additional arguments from command line
@@ -85,7 +102,6 @@ if hasattr(result, 'outputs'):
 """.format(
         module_name = module_name,
         task_function = task_function,
-        mode = mode,
         init_code = init_code,
         params_dict = params_dict,
     )
@@ -110,7 +126,7 @@ if hasattr(result, 'outputs'):
     )
 
 
-def flyte_deploy(name, env_file, env_name, dryrun = False, config_file = None, deps = [], **kwargs):
+def flyte_deploy(name, env_file, env_name, dryrun = False, config_file = None, log_level = 30, deps = [], **kwargs):
     """
     A macro to create a py_binary target that deploys a Flyte environment using flyte.deploy().
 
@@ -120,6 +136,7 @@ def flyte_deploy(name, env_file, env_name, dryrun = False, config_file = None, d
         env_name: The name of the environment to deploy
         dryrun: Whether to perform a dry run (default: False)
         config_file: Path to Flyte config file. If None, uses flyte.init_from_config() to auto-discover .flyte/config.yaml
+        log_level: Logging level (int), default 30 (WARNING). Set to 10 for DEBUG.
         deps: Dependencies required by the environment
         **kwargs: Additional arguments to pass to py_binary
 
@@ -129,6 +146,7 @@ def flyte_deploy(name, env_file, env_name, dryrun = False, config_file = None, d
             env_file = "main.py",
             env_name = "test",
             config_file = "flyte_config.yaml",
+            log_level = 10,
             dryrun = False,
             deps = ["//package:hello"],
         )
@@ -138,19 +156,8 @@ def flyte_deploy(name, env_file, env_name, dryrun = False, config_file = None, d
     env_file_name = env_file.split(":")[-1] if ":" in env_file else env_file
     module_name = env_file_name.replace(".py", "")
 
-    # Create a Python script that uses flyte.deploy()
-    # If config_file is provided, use it explicitly. Otherwise, let flyte.init_from_config()
-    # automatically discover the config in .flyte/config.yaml
-    if config_file:
-        init_code = """config_path = "{config_path}"
-if os.path.exists(config_path):
-    flyte.init_from_config(config_path)
-else:
-    print(f"Error: Config file '{{config_path}}' not found")
-    sys.exit(1)""".format(config_path = config_file)
-    else:
-        init_code = """# Let flyte.init_from_config() automatically find .flyte/config.yaml
-flyte.init_from_config()"""
+    # Generate unified initialization code (deploy always uses remote/config mode)
+    init_code = _generate_flyte_init("remote", config_file, log_level)
 
     script_content = """import sys
 import os
@@ -173,7 +180,7 @@ if env_to_deploy is None:
     print(f"Error: Could not find environment '{env_name}' in module")
     sys.exit(1)
 
-# Initialize flyte
+# Initialize flyte with unified initialization
 {init_code}
 
 # Deploy the environment
@@ -212,7 +219,7 @@ print(f"Deployment completed: {{deployments}}")
         **kwargs
     )
 
-def flyte_build(name, env_file, env_name, config_file = None, deps = [], **kwargs):
+def flyte_build(name, env_file, env_name, config_file = None, log_level = 30, deps = [], **kwargs):
     """
     A macro to create a py_binary target that builds images for a Flyte environment using flyte.build_images().
 
@@ -221,6 +228,7 @@ def flyte_build(name, env_file, env_name, config_file = None, deps = [], **kwarg
         env_file: Python file containing the TaskEnvironment to build
         env_name: The name of the environment to build
         config_file: Path to Flyte config file. If None, uses flyte.init_from_config() to auto-discover .flyte/config.yaml
+        log_level: Logging level (int), default 30 (WARNING). Set to 10 for DEBUG.
         deps: Dependencies required by the environment
         **kwargs: Additional arguments to pass to py_binary
 
@@ -230,6 +238,7 @@ def flyte_build(name, env_file, env_name, config_file = None, deps = [], **kwarg
             env_file = "main.py",
             env_name = "test",
             config_file = "flyte_config.yaml",
+            log_level = 10,
             deps = ["//package:hello"],
         )
     """
@@ -238,19 +247,8 @@ def flyte_build(name, env_file, env_name, config_file = None, deps = [], **kwarg
     env_file_name = env_file.split(":")[-1] if ":" in env_file else env_file
     module_name = env_file_name.replace(".py", "")
 
-    # Create a Python script that uses flyte.build_images()
-    # If config_file is provided, use it explicitly. Otherwise, let flyte.init_from_config()
-    # automatically discover the config in .flyte/config.yaml
-    if config_file:
-        init_code = """config_path = "{config_path}"
-if os.path.exists(config_path):
-    flyte.init_from_config(config_path)
-else:
-    print(f"Error: Config file '{{config_path}}' not found")
-    sys.exit(1)""".format(config_path = config_file)
-    else:
-        init_code = """# Let flyte.init_from_config() automatically find .flyte/config.yaml
-flyte.init_from_config()"""
+    # Generate unified initialization code (build always uses remote/config mode)
+    init_code = _generate_flyte_init("remote", config_file, log_level)
 
     script_content = """import sys
 import os
@@ -273,7 +271,7 @@ if env_to_build is None:
     print(f"Error: Could not find environment '{env_name}' in module")
     sys.exit(1)
 
-# Initialize flyte
+# Initialize flyte with unified initialization
 {init_code}
 
 # Build the environment images

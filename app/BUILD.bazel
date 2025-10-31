@@ -37,6 +37,7 @@ flyte_run(
     task_file = "main.py",
     task_function = "main",
     mode = "local",
+    log_level = 10,  # DEBUG level for detailed logging
     params = ["x='Bazel'", "count=3"],
     deps = [
         "//package:hello",
@@ -51,6 +52,7 @@ flyte_run(
     task_file = "main.py",
     task_function = "main",
     mode = "remote",
+    log_level = 10,  # DEBUG level for detailed logging
     params = ["x='Bazel Remote'", "count=2"],
     deps = [
         "//package:hello",
