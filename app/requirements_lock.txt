@@ -52,8 +52,8 @@ dataclasses-json==0.6.7 \
     --hash=sha256:0dbf33f26c8d5305befd61b39d2b3414e8a407bedc2834dea9b8d642666fb40a \
     --hash=sha256:b6b3e528266ea45b9535223bc53ca645f5208833c29229e847b3f26a1cc55fc0
     # via flyte
-flyte==2.0.0b26 \
-    --hash=sha256:d000947d7455b946277b9709f9e7b14933389ea4c1e9c484df82acbbd16ea05d
+flyte==2.0.0b28 \
+    --hash=sha256:7c47b7eace01c40aff0191f8be691a8aa17f50df6dcebb1edb319f98b3a7f395
     # via -r app/requirements.txt
 flyteidl==1.16.1 \
     --hash=sha256:3918732f15c13701619ced7f8063860020859d41f3204dd53fffaf095df1bd53 \

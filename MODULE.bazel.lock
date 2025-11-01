@@ -211,7 +211,7 @@
         "bzlTransitiveDigest": "nsM9TJlv/3UhfShpdNe4npF8AD7NuDCHDmBSVNYOB98=",
         "usagesDigest": "Ahw8tfl4RFI7gsL20GZO8eHQBue3KE1+NDqf/45/UXE=",
         "recordedFileInputs": {
-          "@@//app/requirements_lock.txt": "9f590d7f7660b361e3e140044a80dd707329a328727971e62c59d937f1300078",
+          "@@//app/requirements_lock.txt": "27d989ac33b138975dfeea6b6906d9079677d2115de5e84e15f2cc27e09ef0e8",
           "@@protobuf+//python/requirements.txt": "983be60d3cec4b319dcab6d48aeb3f5b2f7c3350f26b3a9e97486c37967c73c5",
           "@@rules_fuzzing+//fuzzing/requirements.txt": "ab04664be026b632a0d2a2446c4f65982b7654f5b6851d2f9d399a19b7242a5b",
           "@@rules_python+//tools/publish/requirements_darwin.txt": "2994136eab7e57b083c3de76faf46f70fad130bc8e7360a7fed2b288b69e79dc",
@@ -335,7 +335,7 @@
               "group_name": "flyte",
               "python_interpreter_target": "@@rules_python++python+python_3_11_host//:python",
               "repo": "pip_311",
-              "requirement": "flyte==2.0.0b26     --hash=sha256:d000947d7455b946277b9709f9e7b14933389ea4c1e9c484df82acbbd16ea05d"
+              "requirement": "flyte==2.0.0b28     --hash=sha256:7c47b7eace01c40aff0191f8be691a8aa17f50df6dcebb1edb319f98b3a7f395"
             }
           },
           "pip_311_flyteidl": {
