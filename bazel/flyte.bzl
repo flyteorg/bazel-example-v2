@@ -1,35 +1,36 @@
 """Bazel rules for running Flyte CLI commands and Python API functions."""
 
-load("@rules_python//python:defs.bzl", "py_binary")
+load("@aspect_rules_py//py:defs.bzl", "py_binary")
 
-def _generate_flyte_init(mode, config_file = None, log_level = 30):
-    """
-    Generates unified Flyte initialization code.
+def _make_flyte_target(name, src_file, args, deps, kwargs):
+    """Creates a one-line wrapper + py_binary that dispatches to flyte_runner.
+
+    Each target gets a tiny generated main script that imports and calls the
+    shared flyte_runner.main().  All per-target config is passed via CLI args
+    (the py_binary `args` attribute), so zero application logic is generated.
 
     Args:
-        mode: Execution mode: 'local' or 'remote'
-        config_file: Path to Flyte config file (used for remote mode). If None, uses auto-discovery
-        log_level: Logging level (int), default 30 (WARNING). Set to 10 for DEBUG.
-
-    Returns:
-        Python code string for Flyte initialization
+        name: Target name for the py_binary
+        src_file: User's Python source file (task or env module)
+        args: CLI arguments forwarded to flyte_runner
+        deps: Dependencies for the py_binary
+        kwargs: Extra kwargs forwarded to py_binary
     """
-    if mode == "local":
-        return """# Initialize Flyte for local execution
-flyte.init(log_level={log_level})""".format(log_level = log_level)
-    else:
-        # Remote mode - use init_from_config
-        if config_file:
-            return """# Initialize Flyte for remote execution with explicit config
-config_path = "{config_path}"
-if os.path.exists(config_path):
-    flyte.init_from_config(config_path, log_level={log_level})
-else:
-    print(f"Error: Config file '{{config_path}}' not found")
-    sys.exit(1)""".format(config_path = config_file, log_level = log_level)
-        else:
-            return """# Initialize Flyte for remote execution with auto-discovered config
-flyte.init_from_config(log_level={log_level})""".format(log_level = log_level)
+    script_name = name + "_main.py"
+    native.genrule(
+        name = name + "_gen",
+        outs = [script_name],
+        cmd = "echo 'from flyte_runner import main; main()' > $@",
+    )
+    py_binary(
+        name = name,
+        srcs = [script_name, src_file],
+        main = script_name,
+        args = args,
+        deps = deps + ["//bazel:_flyte_runner_lib"],
+        imports = ["."],
+        **kwargs
+    )
 
 def flyte_run(name, task_file, task_function, mode = "local", params = [], config_file = None, log_level = 30, deps = [], **kwargs):
     """
@@ -58,73 +59,24 @@ def flyte_run(name, task_file, task_function, mode = "local", params = [], confi
             deps = ["//package:hello"],
         )
     """
-
-    # Build parameter arguments as Python dictionary
-    params_dict = "{"
-    for p in params:
-        parts = p.split("=", 1)
-        key = parts[0]
-        value = parts[1]
-        params_dict += '"%s": %s, ' % (key, value)
-    params_dict += "}"
-
-    # Get the task file name without the label prefix and extension
     task_file_name = task_file.split(":")[-1] if ":" in task_file else task_file
     module_name = task_file_name.replace(".py", "")
+    package_path = native.package_name()
+    package_depth = len(package_path.split("/"))
 
-    # Generate unified initialization code
-    init_code = _generate_flyte_init(mode, config_file, log_level)
+    args = [
+        "--action", "run",
+        "--module", module_name,
+        "--function", task_function,
+        "--mode", mode,
+        "--package-path", package_path,
+        "--package-depth", str(package_depth),
+        "--log-level", str(log_level),
+    ]
+    for p in params:
+        args += ["--param", p]
 
-    script_content = """import sys
-import os
-import flyte
-
-# Import the task module directly
-import {module_name} as task_module
-
-# Get the task function
-task_fn = getattr(task_module, "{task_function}")
-
-# Initialize flyte with unified initialization
-{init_code}
-
-# Parse additional arguments from command line
-params = {params_dict}
-
-# Run the task
-result = flyte.run(task_fn, **params)
-
-print(f"Task completed. Result: {{result}}")
-if hasattr(result, 'url'):
-    print(f"URL: {{result.url}}")
-if hasattr(result, 'outputs'):
-    print(f"Outputs: {{result.outputs()}}")
-""".format(
-        module_name = module_name,
-        task_function = task_function,
-        init_code = init_code,
-        params_dict = params_dict,
-    )
-
-    # Write the Python script to a file
-    script_name = name + "_runner.py"
-    native.genrule(
-        name = name + "_gen_runner",
-        outs = [script_name],
-        cmd = "cat > $@ <<'EOF'\n" + script_content + "\nEOF",
-    )
-
-    # Create a py_binary that runs the script
-    # We need to add the current package to imports so the task file can be imported
-    py_binary(
-        name = name,
-        srcs = [script_name, task_file],
-        main = script_name,
-        deps = deps,
-        imports = ["."],
-        **kwargs
-    )
-
+    _make_flyte_target(name, task_file, args, deps, kwargs)
 
 def flyte_deploy(name, env_file, env_name, dryrun = False, config_file = None, log_level = 30, deps = [], **kwargs):
     """
@@ -151,73 +103,23 @@ def flyte_deploy(name, env_file, env_name, dryrun = False, config_file = None, l
             deps = ["//package:hello"],
         )
     """
-
-    # Get the env file name without the label prefix and extension
     env_file_name = env_file.split(":")[-1] if ":" in env_file else env_file
     module_name = env_file_name.replace(".py", "")
+    package_path = native.package_name()
+    package_depth = len(package_path.split("/"))
 
-    # Generate unified initialization code (deploy always uses remote/config mode)
-    init_code = _generate_flyte_init("remote", config_file, log_level)
+    args = [
+        "--action", "deploy",
+        "--module", module_name,
+        "--env-name", env_name,
+        "--package-path", package_path,
+        "--package-depth", str(package_depth),
+        "--log-level", str(log_level),
+    ]
+    if dryrun:
+        args.append("--dryrun")
 
-    script_content = """import sys
-import os
-import flyte
-
-# Import the environment module directly
-import {module_name} as env_module
-
-# Get the environment by name
-env_to_deploy = getattr(env_module, "{env_name}", None)
-if env_to_deploy is None:
-    # Try to find TaskEnvironment instances
-    for attr_name in dir(env_module):
-        attr = getattr(env_module, attr_name)
-        if isinstance(attr, flyte.TaskEnvironment) and attr.name == "{env_name}":
-            env_to_deploy = attr
-            break
-
-if env_to_deploy is None:
-    print(f"Error: Could not find environment '{env_name}' in module")
-    sys.exit(1)
-
-# Initialize flyte with unified initialization
-{init_code}
-
-# Deploy the environment
-deployments = flyte.deploy(
-    envs=env_to_deploy,
-    dryrun={dryrun},
-    version=None,
-    interactive_mode=None,
-    copy_style=None,
-)
-
-print(f"Deployment completed: {{deployments}}")
-""".format(
-        module_name = module_name,
-        env_name = env_name,
-        init_code = init_code,
-        dryrun = "True" if dryrun else "False",
-    )
-
-    # Write the Python script to a file
-    script_name = name + "_deployer.py"
-    native.genrule(
-        name = name + "_gen_deployer",
-        outs = [script_name],
-        cmd = "cat > $@ <<'EOF'\n" + script_content + "\nEOF",
-    )
-
-    # Create a py_binary that runs the script
-    # We need to add the current package to imports so the env file can be imported
-    py_binary(
-        name = name,
-        srcs = [script_name, env_file],
-        main = script_name,
-        deps = deps,
-        imports = ["."],
-        **kwargs
-    )
+    _make_flyte_target(name, env_file, args, deps, kwargs)
 
 def flyte_build(name, env_file, env_name, config_file = None, log_level = 30, deps = [], **kwargs):
     """
@@ -242,66 +144,21 @@ def flyte_build(name, env_file, env_name, config_file = None, log_level = 30, de
             deps = ["//package:hello"],
         )
     """
-
-    # Get the env file name without the label prefix and extension
     env_file_name = env_file.split(":")[-1] if ":" in env_file else env_file
     module_name = env_file_name.replace(".py", "")
+    package_path = native.package_name()
+    package_depth = len(package_path.split("/"))
 
-    # Generate unified initialization code (build always uses remote/config mode)
-    init_code = _generate_flyte_init("remote", config_file, log_level)
+    args = [
+        "--action", "build",
+        "--module", module_name,
+        "--env-name", env_name,
+        "--package-path", package_path,
+        "--package-depth", str(package_depth),
+        "--log-level", str(log_level),
+    ]
 
-    script_content = """import sys
-import os
-import flyte
-
-# Import the environment module directly
-import {module_name} as env_module
-
-# Get the environment by name
-env_to_build = getattr(env_module, "{env_name}", None)
-if env_to_build is None:
-    # Try to find TaskEnvironment instances
-    for attr_name in dir(env_module):
-        attr = getattr(env_module, attr_name)
-        if isinstance(attr, flyte.TaskEnvironment) and attr.name == "{env_name}":
-            env_to_build = attr
-            break
-
-if env_to_build is None:
-    print(f"Error: Could not find environment '{env_name}' in module")
-    sys.exit(1)
-
-# Initialize flyte with unified initialization
-{init_code}
-
-# Build the environment images
-image_cache = flyte.build_images(envs=env_to_build)
-
-print(f"Build completed: {{image_cache}}")
-""".format(
-        module_name = module_name,
-        env_name = env_name,
-        init_code = init_code,
-    )
-
-    # Write the Python script to a file
-    script_name = name + "_builder.py"
-    native.genrule(
-        name = name + "_gen_builder",
-        outs = [script_name],
-        cmd = "cat > $@ <<'EOF'\n" + script_content + "\nEOF",
-    )
-
-    # Create a py_binary that runs the script
-    # We need to add the current package to imports so the env file can be imported
-    py_binary(
-        name = name,
-        srcs = [script_name, env_file],
-        main = script_name,
-        deps = deps,
-        imports = ["."],
-        **kwargs
-    )
+    _make_flyte_target(name, env_file, args, deps, kwargs)
 
 def _flyte_cli_impl(ctx):
     """Implementation of the flyte_cli rule."""

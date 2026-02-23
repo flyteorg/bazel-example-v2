@@ -1,3 +1,4 @@
+load("@aspect_rules_py//py:defs.bzl", "py_library")
 load("@rules_python//python:defs.bzl", "py_binary")
 load("@pip//:requirements.bzl", "requirement")
 
@@ -10,4 +11,15 @@ py_binary(
     ],
     main = "flyte_cli.py",
     visibility = ["//visibility:public"],
+)
+
+# Shared runner logic used by flyte_run / flyte_deploy / flyte_build macros
+py_library(
+    name = "_flyte_runner_lib",
+    srcs = ["flyte_runner.py"],
+    imports = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        requirement("flyte"),
+    ],
 )

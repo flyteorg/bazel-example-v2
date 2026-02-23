@@ -1,4 +1,5 @@
 bazel_dep(name = "rules_python", version = "1.0.0")
+bazel_dep(name = "aspect_rules_py", version = "1.8.4")
 
 pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
 
